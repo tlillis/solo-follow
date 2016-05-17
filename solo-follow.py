@@ -1,13 +1,9 @@
 """
-followme - Tracks GPS position of your computer (Linux only).
-
-This example uses the python gps package to read positions from a GPS attached to your 
-laptop and sends a new vehicle.simple_goto command every two seconds to move the
-vehicle to the current point.
+code initially based off of follow_me DroneKit example:
+http://python.dronekit.io/examples/follow_me.html
 
 When you want to stop follow-me, either change vehicle modes or type Ctrl+C to exit the script.
 
-Example documentation: http://python.dronekit.io/examples/follow_me.html
 """
 
 from dronekit import connect, VehicleMode, LocationGlobalRelative
@@ -15,7 +11,7 @@ import socket
 import time
 import sys
 
-#Set up option parsing to get connection string
+# Set up option parsing to get connection string
 import argparse  
 parser = argparse.ArgumentParser(description='Program for 3DR Solo to track other aircraft')
 parser.add_argument('--solo', 
@@ -27,7 +23,6 @@ args = parser.parse_args()
 solo_connection = args.solo
 ac_connection = args.ac
 
-#Start SITL if no connection string specified
 if not solo_connection:
     print("No solo connection provided")
     exit(0)
@@ -43,10 +38,12 @@ ac = connect(solo_connection, wait_ready=True)
 print 'Connecting to other vehicle on: %s' % ac_connection
 solo = connect(ac_connection, wait_ready=True)
 
-# offsets for solo
+# Offsets for solo
 x = 0
 y = 0
 z = 0
+
+print("Connected! Starting script!")
 
 
 def get_location_metres(original_location, dNorth, dEast):
@@ -80,6 +77,7 @@ def get_location_metres(original_location, dNorth, dEast):
 
     return targetlocation;
 
+# Main Loop
 try:
     while True:
     
@@ -100,7 +98,7 @@ except:
     print("oops")
     sys.exit(1)
 
-#Close vehicle object before exiting script
+# Close vehicle object before exiting script
 print("Close solo and other vehicle object")
 ac.close()
 solo.close()
