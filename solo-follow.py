@@ -6,10 +6,12 @@ When you want to stop follow-me, either change vehicle modes or type Ctrl+C to e
 
 """
 
-from dronekit import connect, VehicleMode, LocationGlobalRelative
+from dronekit import connect, VehicleMode, LocationGlobalRelative, LocationGlobal
+from pymavlink import mavutil
 import socket
 import time
 import sys
+import math 
 
 # Set up option parsing to get connection string
 import argparse  
@@ -33,10 +35,11 @@ if not ac_connection:
 
 # Connect to the Vehicle
 print 'Connecting to 3DR Solo on: %s' % solo_connection
-ac = connect(solo_connection, wait_ready=True)
+solo = connect(solo_connection)
+
 
 print 'Connecting to other vehicle on: %s' % ac_connection
-solo = connect(ac_connection, wait_ready=True)
+ac = connect(ac_connection)
 
 # Offsets for solo
 x = 0
@@ -77,26 +80,39 @@ def get_location_metres(original_location, dNorth, dEast):
 
     return targetlocation;
 
+def set_solo_roi(location):
+    # create the MAV_CMD_DO_SET_ROI command
+    msg = solo.message_factory.command_long_encode(
+        0, 0,    # target system, target component
+        mavutil.mavlink.MAV_CMD_DO_SET_ROI, #command
+        0, #confirmation
+        0, 0, 0, 0, #params 1-4
+        location.lat,
+        location.lon,
+        location.alt
+        )
+    # send command to vehicle
+    solo.send_mavlink(msg)
 # Main Loop
-try:
-    while True:
+#try:
+while True:
     
-        if vehicle.mode.name != "GUIDED":
-            print "User has changed flight modes - aborting follow-me"
-            break    
+        #if vehicle.mode.name != "GUIDED":
+        #    print "User has changed flight modes - aborting follow-me"
+        #    break    
         
-        position = get_location_metres(ac.location.global_relative_frame,y,x)
-        dest = LocationGlobalRelative(position.lat,position.lon,ac.location.global_relative_frame.alt+z)
-        print "Going to: %s" % dest
+    position = get_location_metres(ac.location.global_relative_frame,y,x)
+    dest = LocationGlobalRelative(position.lat,position.lon,ac.location.global_relative_frame.alt+z)
+    print "Going to: %s" % dest
 
-        solo.simple_goto(dest)
-        set_solo_roi(ac.location.global_relative_frame)
+    solo.simple_goto(dest)
+    set_solo_roi(ac.location.global_relative_frame)
 
-        time.sleep(.5)
+    time.sleep(.5)
             
-except:
-    print("oops")
-    sys.exit(1)
+#except:
+#    print("oops")
+#    sys.exit(1)
 
 # Close vehicle object before exiting script
 print("Close solo and other vehicle object")
