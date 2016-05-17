@@ -8,9 +8,13 @@ When you want to stop follow-me, either change vehicle modes or type Ctrl+C to e
 
 from dronekit import connect, VehicleMode, LocationGlobalRelative, LocationGlobal
 from pymavlink import mavutil
+from fastkml import kml, styles
+from fastkml.geometry import Geometry, Point, LineString, Polygon
+import json
 import socket
 import time
 import sys
+import select
 import math 
 
 # Set up option parsing to get connection string
@@ -34,20 +38,53 @@ if not ac_connection:
     exit(0)
 
 # Connect to the Vehicle
-print 'Connecting to 3DR Solo on: %s' % solo_connection
+print('Connecting to 3DR Solo on: {0}'.format(solo_connection))
 solo = connect(solo_connection)
 
 
-print 'Connecting to other vehicle on: %s' % ac_connection
+print('Connecting to other vehicle on: {0}'.format(ac_connection))
 ac = connect(ac_connection)
 
 # Offsets for solo
 x = 0
 y = 0
 z = 0
+rate = 2
 
 print("Connected! Starting script!")
 
+def make_kml(x, y, alt, c, type):
+
+    ns = '{http://www.opengis.net/kml/2.2}'
+    if type == "wp":
+        p= kml.Placemark(ns, name='WP', styleUrl='wp')
+        s = styles.Style(id='wp')
+        IS = styles.IconStyle(scale=1.2, icon_href='https://maps.google.com/mapfiles/kml/shapes/capital_big_highlight.png', heading=(int(c) - 90))
+        s.append_style(IS)
+        d = kml.Document(ns=ns, name='WP')
+    elif type == "ac":
+        p= kml.Placemark(ns, name='AC', styleUrl='ac')
+        s = styles.Style(id='ac')
+        IS = styles.IconStyle(scale=1.2, icon_href='https://maps.google.com/mapfiles/kml/shapes/airports.png', heading=(int(c)))
+        s.append_style(IS)
+        d = kml.Document(ns=ns, name='AC')
+    elif type == "solo":
+        p= kml.Placemark(ns, name='SOLO', styleUrl='solo')
+        s = styles.Style(id='solo')
+        IS = styles.IconStyle(scale=1.2, icon_href='https://maps.google.com/mapfiles/kml/shapes/camera.png', heading=(int(c) - 90))
+        s.append_style(IS)
+        d = kml.Document(ns=ns, name='SOLO')
+    else:
+        return
+
+    geom = Geometry()
+    geom.geometry = Point(float(y), float(x), float(alt))
+    geom.altitude_mode = 'relativeToGround'
+    p.geometry = geom
+    d.append_style(s)
+    d.append(p)
+
+    return d
 
 def get_location_metres(original_location, dNorth, dEast):
     """
@@ -94,25 +131,63 @@ def set_solo_roi(location):
     # send command to vehicle
     solo.send_mavlink(msg)
 # Main Loop
-#try:
 while True:
-    
-        #if vehicle.mode.name != "GUIDED":
-        #    print "User has changed flight modes - aborting follow-me"
-        #    break    
+    while sys.stdin in select.select([sys.stdin], [], [], 0)[0]: ## Handle input
+        line = sys.stdin.readline()
+        if line:
+            input_list = line.split()
+            if input_list[0] == "set":
+                if input_list[1] == "x":
+                    x = int(input_list[2])
+                if input_list[1] == "y":
+                    y = int(input_list[2])
+                if input_list[1] == "z":
+                    z = int(input_list[2])
+                if input_list[1] == "r":
+                    rate = int(input_list[2])
+                else:
+                    print("input not supported {0}".format(input_list[1]))
+            else:
+                print("input not supported {0}".format(input_list[0]))
+        else: # an empty line means stdin has been closed
+            print('eof')
+            exit(0)
+
+    else: ## Do follow calcs and commands
+        #if solo.mode.name != "GUIDED":
+            #print "User has changed flight modes - aborting follow-me"
+            #break    
         
-    position = get_location_metres(ac.location.global_relative_frame,y,x)
-    dest = LocationGlobalRelative(position.lat,position.lon,ac.location.global_relative_frame.alt+z)
-    print "Going to: %s" % dest
+        position = get_location_metres(ac.location.global_relative_frame,y,x)
+        dest = LocationGlobalRelative(position.lat,position.lon,ac.location.global_relative_frame.alt+z)
+        print("Going to: {0}".format(dest))
+        print("X: {0},Y: {1},Z: {2},Rate: {3}".format(x,y,z,rate))
 
-    solo.simple_goto(dest)
-    set_solo_roi(ac.location.global_relative_frame)
+        solo.simple_goto(dest)
+        set_solo_roi(ac.location.global_relative_frame)
 
-    time.sleep(.5)
-            
-#except:
-#    print("oops")
-#    sys.exit(1)
+        time.sleep(rate)
+
+        ## KML updates
+        ns = '{http://www.opengis.net/kml/2.2}'
+
+        ac_k = kml.KML(ns=ns)
+        ac_k.append(make_kml(ac.location.global_relative_frame.lat,ac.location.global_relative_frame.lon,ac.location.global_relative_frame.alt,0,"ac"))
+        kmlfile = open('FOLLOW.kml',"w")
+        kmlfile.write(ac_k.to_string(prettyprint=True))
+        kmlfile.close()
+
+        wp_k = kml.KML(ns=ns)
+        wp_k.append(make_kml(position.lat,position.lon,position.alt,0,"wp"))
+        kmlfile = open('SET_POINT.kml',"w")
+        kmlfile.write(wp_k.to_string(prettyprint=True))
+        kmlfile.close() 
+
+        solo_k = kml.KML(ns=ns)
+        solo_k.append(make_kml(solo.location.global_relative_frame.lat,ac.location.global_relative_frame.lon,ac.location.global_relative_frame.lon,0,"solo"))
+        kmlfile = open('SOLO.kml',"w")
+        kmlfile.write(solo_k.to_string(prettyprint=True))
+        kmlfile.close()
 
 # Close vehicle object before exiting script
 print("Close solo and other vehicle object")

@@ -1,0 +1,24 @@
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>SOLO</name>
+    <visibility>1</visibility>
+    <Style id="solo">
+      <IconStyle>
+        <scale>1.2</scale>
+        <heading>-90</heading>
+        <Icon>
+          <href>https://maps.google.com/mapfiles/kml/shapes/camera.png</href>
+        </Icon>
+      </IconStyle>
+    </Style>
+    <Placemark>
+      <name>SOLO</name>
+      <visibility>1</visibility>
+      <styleUrl>solo</styleUrl>
+      <Point>
+        <altitudeMode>relativeToGround</altitudeMode>
+        <coordinates>-0.001258,0.000000,-0.001258</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>
